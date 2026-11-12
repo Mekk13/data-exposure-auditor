@@ -1,6 +1,6 @@
 import unittest
 
-from auditor.cnp import check_digit, contains_cnp, count_cnps, is_valid_cnp
+from auditor.detectors.cnp import check_digit, contains_cnp, count_cnps, is_valid_cnp
 
 
 def make_cnp(prefix: str) -> str:
