@@ -45,7 +45,19 @@ Run these from the repo root.
    per category and a label (`sensitive`, `ordinary` or `none`). The text
    itself is never written to the results.
 
-3. Run the tests:
+3. Work out the results:
+
+   ```
+   python analyze.py
+   ```
+
+   This compares `results/results.csv` with `data/synthetic/truth.csv` and
+   writes `results/summary.md`: precision, recall and F1 for each detector,
+   the share of pre-GDPR documents with personal data that are sensitive
+   (with a 95% Wilson interval), and the same share split by institution
+   type and by city size.
+
+4. Run the tests:
 
    ```
    python -m unittest discover -s tests -t . -v
