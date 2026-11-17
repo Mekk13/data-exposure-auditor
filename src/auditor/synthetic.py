@@ -27,6 +27,8 @@ PROBABILITIES = {
 }
 
 DECOY_PROBABILITY = 0.4
+TRICKY_PROBABILITY = 0.15
+HARD_FORMAT_PROBABILITY = 0.25
 
 SURNAMES = ["POPESCU", "IONESCU", "POPA", "RADU", "DUMITRU", "STAN", "STOICA", "GHEORGHE",
             "MATEI", "CIOBANU", "SERBAN", "MOLDOVAN", "LUCA", "NISTOR", "BARBU", "TUDOR"]
@@ -50,6 +52,15 @@ HEALTH_PHRASES = {
     "hospital": ["diagnostic: pneumonie", "internare 5 zile", "concediu medical 10 zile"],
     "results_portal": ["absent, certificat medical"],
 }
+
+HIDDEN_HEALTH_PHRASES = ["astm bronsic", "diabet zaharat tip 1", "epilepsie"]
+
+TRICKY_LINES = [
+    "Cazare in internat: {n} locuri disponibile",
+    "Campanie de informare despre boli transmisibile",
+    "Sediu: Str. Mihai Viteazu nr. {n}, Bd. Ion Creanga nr. 7, Str. Avram Iancu nr. 2",
+    "Contact secretariat: secretariat@institutie.ro",
+]
 
 EXTRA = {
     "school": "media {score}",
@@ -90,8 +101,10 @@ def fake_phone(rng: random.Random) -> str:
     return f"07{rng.randint(10, 99)} {rng.randint(100, 999)} {rng.randint(100, 999)}"
 
 
-def fake_birthdate(rng: random.Random) -> str:
+def fake_birthdate(rng: random.Random, hard: bool = False) -> str:
     born = random_day(rng, date(1950, 1, 1), date(2012, 12, 31))
+    if hard:
+        return born.strftime("%d.%m.%Y")
     return "data nasterii " + born.strftime("%d.%m.%Y")
 
 
@@ -114,18 +127,19 @@ def extra(rng: random.Random, institution_type: str) -> str:
     )
 
 
-def person_row(rng: random.Random, number: int, institution_type: str, truth: dict) -> str:
+def person_row(rng: random.Random, number: int, institution_type: str, truth: dict, hard: bool = False) -> str:
     surname = rng.choice(SURNAMES)
     given = rng.choice(GIVEN_NAMES)
     parts = []
     if truth["names"]:
-        parts.append(f"{surname} {given}")
+        parts.append(f"{surname} {given[0]}." if hard else f"{surname} {given}")
     if truth["cnp"]:
         parts.append("CNP " + fake_cnp(rng))
     if truth["birthdate"]:
-        parts.append(fake_birthdate(rng))
+        parts.append(fake_birthdate(rng, hard))
     if truth["health"]:
-        parts.append(rng.choice(HEALTH_PHRASES[institution_type]))
+        phrases = HIDDEN_HEALTH_PHRASES if hard else HEALTH_PHRASES[institution_type]
+        parts.append(rng.choice(phrases))
     if truth["email"]:
         parts.append(f"{given.lower()}.{surname.lower()}{number}@example.ro")
     if truth["phone"]:
@@ -142,16 +156,20 @@ def decoys(rng: random.Random) -> list:
         lines.append(f"Factura nr. {rng.randint(2010, 2024)}/{rng.randint(1, 99999):05d}")
     if rng.random() < DECOY_PROBABILITY:
         lines.append(f"Nr. inregistrare 0{rng.choice('23')}{rng.randint(10, 99)} {rng.randint(100, 999)} {rng.randint(100, 999)}")
+    for line in TRICKY_LINES:
+        if rng.random() < TRICKY_PROBABILITY:
+            lines.append(line.format(n=rng.randint(1, 99)))
     return lines
 
 
 def make_document(rng: random.Random, institution_type: str, published: date) -> tuple:
     chances = PROBABILITIES[institution_type]
     truth = {category: rng.random() < chances[category] for category in CATEGORIES}
+    hard = rng.random() < HARD_FORMAT_PROBABILITY
     lines = [header(rng, institution_type, published.year)]
     if any(truth.values()):
         for number in range(1, rng.randint(3, 8) + 1):
-            lines.append(person_row(rng, number, institution_type, truth))
+            lines.append(person_row(rng, number, institution_type, truth, hard))
     else:
         lines.append(NO_PEOPLE_TEXT)
     lines.extend(decoys(rng))

@@ -1,12 +1,17 @@
 import csv
 import random
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from auditor.classify import CATEGORIES
 from auditor.detectors.cnp import CANDIDATE_PATTERN, is_valid_cnp
-from auditor.synthetic import HEALTH_PHRASES, SURNAMES, generate, person_row, save, wrong_cnp
+from auditor.detectors.birthdate import contains_birthdate
+from auditor.detectors.health import contains_health
+from auditor.detectors.names import contains_names
+from auditor.synthetic import (HEALTH_PHRASES, HIDDEN_HEALTH_PHRASES, SURNAMES, generate, person_row, save,
+                               wrong_cnp)
 
 NONE_INSERTED = {category: False for category in CATEGORIES}
 
@@ -44,8 +49,8 @@ class TestGenerate(unittest.TestCase):
             self.assertEqual(truth["names"], any(name in text for name in SURNAMES), row["doc_id"])
             self.assertEqual(truth["email"], "@example.ro" in text, row["doc_id"])
             self.assertEqual(truth["phone"], "tel. " in text, row["doc_id"])
-            self.assertEqual(truth["birthdate"], "data nasterii" in text, row["doc_id"])
-            phrases = HEALTH_PHRASES[row["institution_type"]]
+            self.assertEqual(truth["birthdate"], re.search(r"\d{2}\.\d{2}\.\d{4}", text) is not None, row["doc_id"])
+            phrases = HEALTH_PHRASES[row["institution_type"]] + HIDDEN_HEALTH_PHRASES
             self.assertEqual(truth["health"], any(phrase in text for phrase in phrases), row["doc_id"])
 
 
@@ -62,6 +67,13 @@ class TestHandBuiltRows(unittest.TestCase):
         self.assertTrue(has_valid_cnp(row))
         self.assertTrue(any(phrase in row for phrase in HEALTH_PHRASES["hospital"]))
         self.assertFalse(any(name in row for name in SURNAMES))
+
+    def test_hard_format_hides_from_detectors(self):
+        truth = dict(NONE_INSERTED, names=True, health=True, birthdate=True)
+        rows = "\n".join(person_row(random.Random(n), n, "hospital", truth, hard=True) for n in range(1, 5))
+        self.assertFalse(contains_names(rows))
+        self.assertFalse(contains_health(rows))
+        self.assertFalse(contains_birthdate(rows))
 
     def test_wrong_cnp_is_never_valid(self):
         rng = random.Random(0)
